@@ -359,11 +359,11 @@ def build_historical_q1_analysis(coef_original, weekly_spend_plan, simulation):
                 "Canal": clean(ch),
                 "Spend (R$)": spend_ch,
                 "Incremental Total com Carryover (R$)": total_effect_ch.sum(),
-                "Incremental Carryover PrÃ©-PerÃ­odo (R$)": carryover_effect_ch.sum(),
-                "Incremental SÃ³ Investimento 13 Semanas (R$)": period_effect_ch.sum(),
+                "Incremental Carryover Pré-Período (R$)": carryover_effect_ch.sum(),
+                "Incremental Só Investimento 13 Semanas (R$)": period_effect_ch.sum(),
                 "ROI com Carryover": total_effect_ch.sum() / spend_ch if spend_ch > 0 else 0,
-                "ROI SÃ³ Investimento 13 Semanas": period_effect_ch.sum() / spend_ch if spend_ch > 0 else 0,
-                "Scenario": "HistÃ³rico"
+                "ROI Só Investimento 13 Semanas": period_effect_ch.sum() / spend_ch if spend_ch > 0 else 0,
+                "Scenario": "Histórico"
             })
 
         year_rows.append({
@@ -371,11 +371,11 @@ def build_historical_q1_analysis(coef_original, weekly_spend_plan, simulation):
             "revenue_brl": revenue_year,
             "total_media_spend": spend_year,
             "Incremental Total com Carryover (R$)": total_media_effect_year,
-            "Incremental Carryover PrÃ©-PerÃ­odo (R$)": carryover_effect_year,
-            "Incremental SÃ³ Investimento 13 Semanas (R$)": period_investment_effect_year,
+            "Incremental Carryover Pré-Período (R$)": carryover_effect_year,
+            "Incremental Só Investimento 13 Semanas (R$)": period_investment_effect_year,
             "ROI com Carryover": total_media_effect_year / spend_year if spend_year > 0 else 0,
-            "ROI SÃ³ Investimento 13 Semanas": period_investment_effect_year / spend_year if spend_year > 0 else 0,
-            "Scenario": "HistÃ³rico"
+            "ROI Só Investimento 13 Semanas": period_investment_effect_year / spend_year if spend_year > 0 else 0,
+            "Scenario": "Histórico"
         })
 
     current_revenue = simulation["projected_revenue"].sum()
@@ -389,10 +389,10 @@ def build_historical_q1_analysis(coef_original, weekly_spend_plan, simulation):
         "revenue_brl": current_revenue,
         "total_media_spend": current_spend,
         "Incremental Total com Carryover (R$)": current_total_effect,
-        "Incremental Carryover PrÃ©-PerÃ­odo (R$)": current_carryover_effect,
-        "Incremental SÃ³ Investimento 13 Semanas (R$)": current_new_effect,
+        "Incremental Carryover Pré-Período (R$)": current_carryover_effect,
+        "Incremental Só Investimento 13 Semanas (R$)": current_new_effect,
         "ROI com Carryover": current_total_effect / current_spend if current_spend > 0 else 0,
-        "ROI SÃ³ Investimento 13 Semanas": current_new_effect / current_spend if current_spend > 0 else 0,
+        "ROI Só Investimento 13 Semanas": current_new_effect / current_spend if current_spend > 0 else 0,
         "Scenario": "Simulado 2025"
     })
 
@@ -408,10 +408,10 @@ def build_historical_q1_analysis(coef_original, weekly_spend_plan, simulation):
             "Canal": clean(ch),
             "Spend (R$)": spend_ch,
             "Incremental Total com Carryover (R$)": total_effect_ch,
-            "Incremental Carryover PrÃ©-PerÃ­odo (R$)": carryover_effect_ch,
-            "Incremental SÃ³ Investimento 13 Semanas (R$)": new_effect_ch,
+            "Incremental Carryover Pré-Período (R$)": carryover_effect_ch,
+            "Incremental Só Investimento 13 Semanas (R$)": new_effect_ch,
             "ROI com Carryover": total_effect_ch / spend_ch if spend_ch > 0 else 0,
-            "ROI SÃ³ Investimento 13 Semanas": new_effect_ch / spend_ch if spend_ch > 0 else 0,
+            "ROI Só Investimento 13 Semanas": new_effect_ch / spend_ch if spend_ch > 0 else 0,
             "Scenario": "Simulado 2025"
         })
 
@@ -449,19 +449,19 @@ budget_total = st.sidebar.number_input(
 )
 
 allocation_mode = st.sidebar.radio(
-    "Modo de alocaÃ§Ã£o",
+    "Modo de alocação",
     ["Otimizado (2D)", "Manual"]
 )
 
 step_size = st.sidebar.number_input(
-    "Granularidade otimizaÃ§Ã£o",
+    "Granularidade otimização",
     min_value=1000,
     value=50000,
     step=5000
 )
 
 st.sidebar.caption(
-    "A otimizaÃ§Ã£o fica em cache. Ela sÃ³ recalcula quando os inputs da barra lateral mudam."
+    "A otimização fica em cache. Ela só recalcula quando os inputs da barra lateral mudam."
 )
 
 weeks = pd.date_range("2025-01-06", "2025-03-31", freq="W-MON")
@@ -476,12 +476,12 @@ baseline_weekly, future_controls = cached_prophet_baseline(
 )
 
 st.title("MMM Interactive Budget Simulator")
-st.caption("Simulador de budget, ROI, response curve e projeÃ§Ã£o de vendas - Q1 2025")
+st.caption("Simulador de budget, ROI, response curve e projeção de vendas - Q1 2025")
 
-st.subheader("1. AlocaÃ§Ã£o de budget por canal")
+st.subheader("1. Alocação de budget por canal")
 
 if allocation_mode == "Manual":
-    st.markdown("**DistribuiÃ§Ã£o por canal â€” use pesos. O app normaliza para 100%.**")
+    st.markdown("**Distribuição por canal — use pesos. O app normaliza para 100%.**")
 
     cols = st.columns(3)
     channel_weights = {}
@@ -517,12 +517,12 @@ if allocation_mode == "Manual":
         use_container_width=True
     )
 
-    st.markdown("**DistribuiÃ§Ã£o semanal â€” use pesos. O app normaliza cada canal para 100%.**")
+    st.markdown("**Distribuição semanal — use pesos. O app normaliza cada canal para 100%.**")
 
     weekly_spend_plan = {}
 
     for ch in media_cols:
-        with st.expander(f"{clean(ch)} â€” budget total: R$ {channel_budget[ch]:,.0f}", expanded=False):
+        with st.expander(f"{clean(ch)} — budget total: R$ {channel_budget[ch]:,.0f}", expanded=False):
             wcols = st.columns(4)
             week_weights = {}
 
@@ -736,7 +736,7 @@ c1, r1, c2, r2, c3 = st.columns(5)
 
 with c1:
     st.metric(
-        "ROI SÃ³ Investimento 2025",
+        "ROI Só Investimento 2025",
         f"{projected_roi_new_budget:.2f}x"
     )
 
@@ -764,9 +764,9 @@ for ch in media_cols:
         "Investimento 2025 (R$)": total_spend,
         "Incremental Total com Carryover (R$)": total_resp,
         "Incremental Carryover 2024 (R$)": carry_resp,
-        "Incremental SÃ³ Investimento 2025 (R$)": new_resp,
+        "Incremental Só Investimento 2025 (R$)": new_resp,
         "ROI com Carryover": total_resp / total_spend if total_spend > 0 else 0,
-        "ROI SÃ³ Investimento 2025": new_resp / total_spend if total_spend > 0 else 0
+        "ROI Só Investimento 2025": new_resp / total_spend if total_spend > 0 else 0
     })
 
 roi_sim_df = pd.DataFrame(roi_sim_rows).sort_values(
@@ -779,17 +779,17 @@ st.dataframe(
         "Investimento 2025 (R$)": "R$ {:,.0f}",
         "Incremental Total com Carryover (R$)": "R$ {:,.0f}",
         "Incremental Carryover 2024 (R$)": "R$ {:,.0f}",
-        "Incremental SÃ³ Investimento 2025 (R$)": "R$ {:,.0f}",
+        "Incremental Só Investimento 2025 (R$)": "R$ {:,.0f}",
         "ROI com Carryover": "{:.2f}x",
-        "ROI SÃ³ Investimento 2025": "{:.2f}x"
+        "ROI Só Investimento 2025": "{:.2f}x"
     }),
     use_container_width=True
 )
 
 roi_sim_long = roi_sim_df.melt(
     id_vars=["Canal", "Investimento 2025 (R$)"],
-    value_vars=["ROI com Carryover", "ROI SÃ³ Investimento 2025"],
-    var_name="VisÃ£o",
+    value_vars=["ROI com Carryover", "ROI Só Investimento 2025"],
+    var_name="Visão",
     value_name="ROI"
 )
 
@@ -797,10 +797,10 @@ fig_roi_compare_2025 = px.bar(
     roi_sim_long,
     x="Canal",
     y="ROI",
-    color="VisÃ£o",
+    color="Visão",
     text="ROI",
     barmode="group",
-    title="ROI 2025 por canal: com carryover vs sÃ³ investimento do perÃ­odo",
+    title="ROI 2025 por canal: com carryover vs só investimento do período",
     category_orders={"Canal": roi_sim_df["Canal"].tolist()}
 )
 
@@ -819,7 +819,7 @@ fig_roi_compare_2025.add_hline(
 )
 st.plotly_chart(fig_roi_compare_2025, use_container_width=True)
 
-st.subheader("3. ProjeÃ§Ã£o semanal de vendas")
+st.subheader("3. Projeção semanal de vendas")
 
 decomp_df = simulation[[
     "date",
@@ -839,7 +839,7 @@ decomp_long = decomp_df.melt(
 decomp_long["Metrica"] = decomp_long["Metrica"].map({
     "baseline": "Baseline Prophet + MMM Controls",
     "carryover_media_effect": "Carryover de Investimentos Anteriores",
-    "new_media_effect": "Incremental SÃ³ Investimento do PerÃ­odo",
+    "new_media_effect": "Incremental Só Investimento do Período",
     "projected_revenue": "Venda Projetada"
 })
 
@@ -865,7 +865,7 @@ fig_sales.update_yaxes(tickformat=".2f", title="Predicted Revenue (R$ MM)")
 fig_sales.update_xaxes(title="Date")
 st.plotly_chart(fig_sales, use_container_width=True)
 
-st.subheader("3.1 DecomposiÃ§Ã£o empilhada")
+st.subheader("3.1 Decomposição empilhada")
 
 stack_long = decomp_df.melt(
     id_vars="date",
@@ -877,7 +877,7 @@ stack_long = decomp_df.melt(
 stack_long["Componente"] = stack_long["Componente"].map({
     "baseline": "Baseline",
     "carryover_media_effect": "Carryover Anterior",
-    "new_media_effect": "Incremental Investimento do PerÃ­odo"
+    "new_media_effect": "Incremental Investimento do Período"
 })
 
 fig_stack = px.area(
@@ -889,9 +889,10 @@ fig_stack = px.area(
 )
 
 fig_stack.update_yaxes(tickformat=",.0f")
+fig_stack.update_layout(hovermode="x unified")
 st.plotly_chart(fig_stack, use_container_width=True)
 
-st.subheader("3.2 ContribuiÃ§Ã£o semanal de mÃ­dia por canal")
+st.subheader("3.2 Contribuição semanal de mídia por canal")
 
 total_effect_cols = [f"{ch.replace('_spend_brl', '')}_total_media_effect" for ch in media_cols]
 carryover_effect_cols = [f"{ch.replace('_spend_brl', '')}_carryover_effect" for ch in media_cols]
@@ -901,7 +902,7 @@ total_media_long = simulation.melt(
     id_vars="date",
     value_vars=total_effect_cols,
     var_name="Canal",
-    value_name="Efeito Total MÃ­dia (R$)"
+    value_name="Efeito Total Mídia (R$)"
 )
 
 total_media_long["Canal"] = (
@@ -914,15 +915,16 @@ total_media_long["Canal"] = (
 fig_total_media_weekly = px.area(
     total_media_long,
     x="date",
-    y="Efeito Total MÃ­dia (R$)",
+    y="Efeito Total Mídia (R$)",
     color="Canal",
     title="Weekly Total Media Effect by Channel"
 )
 
 fig_total_media_weekly.update_yaxes(tickformat=",.0f")
+fig_total_media_weekly.update_layout(hovermode="x unified")
 st.plotly_chart(fig_total_media_weekly, use_container_width=True)
 
-tab_carry, tab_new = st.tabs(["Carryover anterior por canal", "Incremental investimento do perÃ­odo por canal"])
+tab_carry, tab_new = st.tabs(["Carryover anterior por canal", "Incremental investimento do período por canal"])
 
 with tab_carry:
     carryover_long = simulation.melt(
@@ -947,6 +949,7 @@ with tab_carry:
         title="Weekly Carryover Effect from Previous Investments"
     )
     fig_carry.update_yaxes(tickformat=",.0f")
+    fig_carry.update_layout(hovermode="x unified")
     st.plotly_chart(fig_carry, use_container_width=True)
 
 with tab_new:
@@ -954,7 +957,7 @@ with tab_new:
         id_vars="date",
         value_vars=new_effect_cols,
         var_name="Canal",
-        value_name="Incremental Investimento do PerÃ­odo (R$)"
+        value_name="Incremental Investimento do Período (R$)"
     )
 
     new_long["Canal"] = (
@@ -967,11 +970,12 @@ with tab_new:
     fig_new = px.area(
         new_long,
         x="date",
-        y="Incremental Investimento do PerÃ­odo (R$)",
+        y="Incremental Investimento do Período (R$)",
         color="Canal",
         title="Weekly Incremental Effect from Period Budget"
     )
     fig_new.update_yaxes(tickformat=",.0f")
+    fig_new.update_layout(hovermode="x unified")
     st.plotly_chart(fig_new, use_container_width=True)
 
 st.subheader("4. Adstock efetivo por canal ao longo do Q1")
@@ -1002,7 +1006,7 @@ fig_ads = px.line(
     color="Canal",
     markers=True,
     text="Label MM",
-    title="Adstock Total: Carryover + Spend do PerÃ­odo"
+    title="Adstock Total: Carryover + Spend do Período"
 )
 
 fig_ads.update_traces(
@@ -1013,7 +1017,7 @@ fig_ads.update_traces(
 fig_ads.update_yaxes(tickformat=".2f", title="Adstock Total (R$ MM)")
 st.plotly_chart(fig_ads, use_container_width=True)
 
-st.subheader("4.1 SaturaÃ§Ã£o semanal por canal (%)")
+st.subheader("4.1 Saturação semanal por canal (%)")
 
 sat_total_cols = [c for c in simulation.columns if c.endswith("_saturation_total")]
 
@@ -1039,7 +1043,7 @@ fig_sat = px.line(
     y="Saturacao Total (%)",
     color="Canal",
     markers=True,
-    title="SaturaÃ§Ã£o semanal total por canal (%)",
+    title="Saturação semanal total por canal (%)",
     range_y=[0, 100]
 )
 
@@ -1049,8 +1053,8 @@ fig_sat.update_traces(
     textposition="top center"
 )
 
-fig_sat.add_hline(y=80, line_dash="dash", line_color="orange", annotation_text="Alta saturaÃ§Ã£o 80%")
-fig_sat.add_hline(y=50, line_dash="dot", line_color="green", annotation_text="SaturaÃ§Ã£o mÃ©dia 50%")
+fig_sat.add_hline(y=80, line_dash="dash", line_color="orange", annotation_text="Alta saturação 80%")
+fig_sat.add_hline(y=50, line_dash="dot", line_color="green", annotation_text="Saturação média 50%")
 st.plotly_chart(fig_sat, use_container_width=True)
 
 st.subheader("5. Plano semanal sugerido")
@@ -1077,7 +1081,7 @@ st.dataframe(
     use_container_width=True
 )
 
-st.subheader("6. AnÃ¡lise histÃ³rica das primeiras 13 semanas")
+st.subheader("6. Análise histórica das primeiras 13 semanas")
 
 hist_summary_plus, hist_channel_compare = build_historical_q1_analysis(
     coef_original=coef_original,
@@ -1093,9 +1097,9 @@ with col_h1:
         value_vars=[
             "total_media_spend",
             "Incremental Total com Carryover (R$)",
-            "Incremental SÃ³ Investimento 13 Semanas (R$)"
+            "Incremental Só Investimento 13 Semanas (R$)"
         ],
-        var_name="MÃ©trica",
+        var_name="Métrica",
         value_name="Valor"
     )
 
@@ -1106,7 +1110,7 @@ with col_h1:
         hist_effect_plot,
         x="year",
         y="Valor MM",
-        color="MÃ©trica",
+        color="Métrica",
         text="Label MM",
         barmode="group",
         title="Q1 semanas 1-13: Spend vs Incremental com/sem carryover"
@@ -1123,8 +1127,8 @@ with col_h1:
 with col_h2:
     hist_roi_plot = hist_summary_plus.melt(
         id_vars="year",
-        value_vars=["ROI com Carryover", "ROI SÃ³ Investimento 13 Semanas"],
-        var_name="VisÃ£o ROI",
+        value_vars=["ROI com Carryover", "ROI Só Investimento 13 Semanas"],
+        var_name="Visão ROI",
         value_name="ROI"
     )
 
@@ -1134,10 +1138,10 @@ with col_h2:
         hist_roi_plot,
         x="year",
         y="ROI",
-        color="VisÃ£o ROI",
+        color="Visão ROI",
         markers=True,
         text="ROI Label",
-        title="ROI Ads: com carryover vs sÃ³ investimento do perÃ­odo"
+        title="ROI Ads: com carryover vs só investimento do período"
     )
 
     fig_hist_roi.update_traces(
@@ -1148,7 +1152,7 @@ with col_h2:
     fig_hist_roi.update_yaxes(tickformat=".2f")
     st.plotly_chart(fig_hist_roi, use_container_width=True)
 
-st.markdown("**Spend por canal nas primeiras 13 semanas â€” histÃ³rico vs simulado**")
+st.markdown("**Spend por canal nas primeiras 13 semanas — histórico vs simulado**")
 
 fig_hist_channel = px.bar(
     hist_channel_compare,
@@ -1164,7 +1168,7 @@ fig_hist_channel.update_traces(texttemplate="%{text:.1f}%", textposition="inside
 fig_hist_channel.update_yaxes(tickformat=",.0f")
 st.plotly_chart(fig_hist_channel, use_container_width=True)
 
-st.markdown("**ROI sÃ³ investimento 13 semanas por canal â€” comparaÃ§Ã£o anual**")
+st.markdown("**ROI só investimento 13 semanas por canal — comparação anual**")
 
 channel_order_by_spend = (
     hist_channel_compare
@@ -1176,44 +1180,43 @@ channel_order_by_spend = (
 
 roi_channel_plot = hist_channel_compare.copy()
 roi_channel_plot["year"] = roi_channel_plot["year"].astype(str)
-roi_channel_plot["ROI"] = roi_channel_plot["ROI SÃ³ Investimento 13 Semanas"]
+roi_channel_plot["ROI"] = roi_channel_plot["ROI Só Investimento 13 Semanas"]
 roi_channel_plot["ROI Label"] = roi_channel_plot["ROI"].map(lambda x: f"{x:.2f}x")
 
-fig_channel_roi = px.line(
+fig_channel_roi = px.bar(
     roi_channel_plot,
     x="Canal",
     y="ROI",
     color="year",
-    markers=True,
+    barmode="group",
     text="ROI Label",
-    title="ROI Ads por canal nas primeiras 13 semanas â€” sÃ³ investimento do perÃ­odo",
+    title="ROI Ads por canal nas primeiras 13 semanas — só investimento do período",
     category_orders={"Canal": channel_order_by_spend}
 )
 
 fig_channel_roi.update_traces(
-    mode="lines+markers+text",
-    textposition="top center"
+    textposition="outside"
 )
 
-fig_channel_roi.update_yaxes(tickformat=".2f", title="ROI SÃ³ Investimento 13 Semanas")
+fig_channel_roi.update_yaxes(tickformat=".2f", title="ROI Só Investimento 13 Semanas")
 fig_channel_roi.update_layout(legend_title_text="Ano")
 st.plotly_chart(fig_channel_roi, use_container_width=True)
 
-with st.expander("Tabela detalhada: histÃ³rico vs simulado"):
+with st.expander("Tabela detalhada: histórico vs simulado"):
     st.dataframe(
         hist_channel_compare.sort_values(["year", "Spend (R$)"], ascending=[True, False]).style.format({
             "Spend (R$)": "R$ {:,.0f}",
             "Incremental Total com Carryover (R$)": "R$ {:,.0f}",
-            "Incremental Carryover PrÃ©-PerÃ­odo (R$)": "R$ {:,.0f}",
-            "Incremental SÃ³ Investimento 13 Semanas (R$)": "R$ {:,.0f}",
+            "Incremental Carryover Pré-Período (R$)": "R$ {:,.0f}",
+            "Incremental Só Investimento 13 Semanas (R$)": "R$ {:,.0f}",
             "ROI com Carryover": "{:.2f}x",
-            "ROI SÃ³ Investimento 13 Semanas": "{:.2f}x",
+            "ROI Só Investimento 13 Semanas": "{:.2f}x",
             "Spend Share (%)": "{:.1f}%"
         }),
         use_container_width=True
     )
 
-st.subheader("7. ROI histÃ³rico estimado pelo modelo")
+st.subheader("7. ROI histórico estimado pelo modelo")
 
 st.dataframe(
     roi_table.style.format({
@@ -1260,9 +1263,9 @@ for ch in selected_channels:
     curve_data.append(pd.DataFrame({
         "Adstock Efetivo (R$)": grid_ads_total,
         "Spend Novo (R$)": grid_spend,
-        "Efeito Total MÃ­dia (R$)": resp_total,
+        "Efeito Total Mídia (R$)": resp_total,
         "Carryover Anterior (R$)": resp_carryover,
-        "Incremental SÃ³ Investimento do PerÃ­odo (R$)": resp_new,
+        "Incremental Só Investimento do Período (R$)": resp_new,
         "Saturacao (%)": sat_grid,
         "Canal": clean(ch)
     }))
@@ -1271,18 +1274,18 @@ if curve_data:
     curve_df = pd.concat(curve_data)
 
     tab1, tab2, tab3 = st.tabs([
-        "Incremental Investimento do PerÃ­odo",
-        "Efeito Total MÃ­dia",
-        "SaturaÃ§Ã£o"
+        "Incremental Investimento do Período",
+        "Efeito Total Mídia",
+        "Saturação"
     ])
 
     with tab1:
         fig_curve_new = px.line(
             curve_df,
             x="Spend Novo (R$)",
-            y="Incremental SÃ³ Investimento do PerÃ­odo (R$)",
+            y="Incremental Só Investimento do Período (R$)",
             color="Canal",
-            title="Response Curve - Incremental do investimento do perÃ­odo vs Spend Novo"
+            title="Response Curve - Incremental do investimento do período vs Spend Novo"
         )
         fig_curve_new.update_yaxes(tickformat=",.0f")
         fig_curve_new.update_xaxes(tickformat=",.0f")
@@ -1292,9 +1295,9 @@ if curve_data:
         fig_curve_total = px.line(
             curve_df,
             x="Adstock Efetivo (R$)",
-            y="Efeito Total MÃ­dia (R$)",
+            y="Efeito Total Mídia (R$)",
             color="Canal",
-            title="Response Curve - Efeito Total de MÃ­dia vs Adstock Efetivo"
+            title="Response Curve - Efeito Total de Mídia vs Adstock Efetivo"
         )
         fig_curve_total.update_yaxes(tickformat=",.0f")
         fig_curve_total.update_xaxes(tickformat=",.0f")
@@ -1306,11 +1309,11 @@ if curve_data:
             x="Adstock Efetivo (R$)",
             y="Saturacao (%)",
             color="Canal",
-            title="SaturaÃ§Ã£o vs Adstock efetivo",
+            title="Saturação vs Adstock efetivo",
             range_y=[0, 100]
         )
-        fig_sat2.add_hline(y=80, line_dash="dash", line_color="orange", annotation_text="Alta saturaÃ§Ã£o")
-        fig_sat2.add_hline(y=50, line_dash="dot", line_color="green", annotation_text="SaturaÃ§Ã£o mÃ©dia")
+        fig_sat2.add_hline(y=80, line_dash="dash", line_color="orange", annotation_text="Alta saturação")
+        fig_sat2.add_hline(y=50, line_dash="dot", line_color="green", annotation_text="Saturação média")
         fig_sat2.update_xaxes(tickformat=",.0f")
         st.plotly_chart(fig_sat2, use_container_width=True)
 
@@ -1358,7 +1361,7 @@ with st.expander("Debug Hill Params"):
         use_container_width=True
     )
 
-st.subheader("9. Exportar simulaÃ§Ã£o")
+st.subheader("9. Exportar simulação")
 
 csv = weekly_plan.to_csv(index=False).encode("utf-8")
 
