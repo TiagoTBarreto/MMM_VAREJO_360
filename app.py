@@ -421,7 +421,7 @@ def build_historical_q1_analysis(coef_original, weekly_spend_plan, simulation):
     ).fillna(0)
 
     return year_summary, channel_compare
-  
+
 st.sidebar.title("Inputs do Simulador")
 
 model_name = st.sidebar.selectbox(
@@ -585,28 +585,35 @@ else:
 
 alloc_df = alloc_df.sort_values("Q1 Total (R$)", ascending=False).reset_index(drop=True)
 
-col_a, col_b = st.columns([1, 2])
+fig_alloc = px.line(
+    alloc_df,
+    x="Canal",
+    y="Share (%)",
+    markers=True,
+    text="Share (%)",
+    color="Canal",
+    title="BUDGET Q1 POR CANAL",
+    category_orders={"Canal": alloc_df["Canal"].tolist()}
+)
 
-with col_a:
-    st.dataframe(
-        alloc_df.style.format({
-            "Q1 Total (R$)": "R$ {:,.0f}",
-            "Share (%)": "{:.1f}%"
-        }),
-        use_container_width=True
-    )
+fig_alloc.update_traces(
+    texttemplate="%{text:.1f}%",
+    textposition="top center",
+    line_width=4,
+    marker_size=12
+)
 
-with col_b:
-    fig_alloc = px.bar(
-        alloc_df,
-        x="Canal",
-        y="Q1 Total (R$)",
-        color="Canal",
-        title="Budget Q1 por canal",
-        text_auto=".2s",
-        category_orders={"Canal": alloc_df["Canal"].tolist()}
-    )
-    st.plotly_chart(fig_alloc, use_container_width=True)
+fig_alloc.update_yaxes(
+    title="Budget Share (%)",
+    ticksuffix="%",
+    range=[0, alloc_df["Share (%)"].max() * 1.25]
+)
+
+fig_alloc.update_layout(
+    showlegend=False
+)
+
+st.plotly_chart(fig_alloc, use_container_width=True)
 
 spend_matrix = pd.DataFrame(
     {clean(ch): weekly_spend_plan[ch] for ch in media_cols},
