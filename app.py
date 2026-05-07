@@ -734,13 +734,13 @@ k5.metric("Incremental Revenue 2025", f"R$ {total_new_media:,.0f}")
 
 c1, r1, c2, r2, c3 = st.columns(5)
 
-with r1:
+with c1:
     st.metric(
         "ROI Só Investimento 2025",
         f"{projected_roi_new_budget:.2f}x"
     )
 
-with r2:
+with r1:
     st.metric(
         "ROI com Carryover",
         f"{projected_roi_total_media:.2f}x"
