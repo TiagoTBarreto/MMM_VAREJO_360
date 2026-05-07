@@ -585,54 +585,80 @@ else:
 
 alloc_df = alloc_df.sort_values("Q1 Total (R$)", ascending=False).reset_index(drop=True)
 
-fig_alloc = px.bar(
-    alloc_df,
-    x="Canal",
-    y="Q1 Total (R$)",
-    color="Canal",
-    title="BUDGET Q1 POR CANAL",
-    text_auto=".2s",
-    category_orders={"Canal": alloc_df["Canal"].tolist()}
+alloc_df["Cumulative Share (%)"] = alloc_df["Share (%)"].cumsum()
+
+fig_alloc = make_subplots(specs=[[{"secondary_y": True}]])
+
+# Budget bars
+fig_alloc.add_trace(
+    go.Bar(
+        x=alloc_df["Channel"],
+        y=alloc_df["Q1 Total Budget (R$)"],
+        name="Q1 Budget (R$)",
+        text=[f"R$ {v:,.0f}" for v in alloc_df["Q1 Total Budget (R$)"]],
+        textposition="outside",
+        marker_color="#2563EB"
+    ),
+    secondary_y=False
 )
 
-# Cumulative investment line
-alloc_df["Investimento Acumulado (R$)"] = alloc_df["Q1 Total (R$)"].cumsum()
-
-fig_alloc.add_scatter(
-    x=alloc_df["Canal"],
-    y=alloc_df["Investimento Acumulado (R$)"],
-    mode="lines+markers+text",
-    name="Investimento acumulado",
-    text=[f"R$ {v:,.0f}" for v in alloc_df["Investimento Acumulado (R$)"]],
-    textposition="top center",
-    line=dict(width=3)
+# Channel share line
+fig_alloc.add_trace(
+    go.Scatter(
+        x=alloc_df["Channel"],
+        y=alloc_df["Share (%)"],
+        name="Channel Share (%)",
+        mode="lines+markers+text",
+        text=[f"{v:.1f}%" for v in alloc_df["Share (%)"]],
+        textposition="bottom center",
+        line=dict(color="#111111", width=4),
+        marker=dict(size=10, color="#111111")
+    ),
+    secondary_y=True
 )
 
-# Channel share as markers only, using the same money axis converted to BRL scale
-total_budget_alloc = alloc_df["Q1 Total (R$)"].sum()
-
-alloc_df["Share no eixo R$"] = (
-    alloc_df["Share (%)"] / 100 * total_budget_alloc
-)
-
-fig_alloc.add_scatter(
-    x=alloc_df["Canal"],
-    y=alloc_df["Share no eixo R$"],
-    mode="markers+text",
-    name="% do canal",
-    text=[f"{v:.1f}%" for v in alloc_df["Share (%)"]],
-    textposition="bottom center",
-    marker=dict(size=12)
-)
-
-fig_alloc.update_yaxes(
-    title="Investimento Q1 / Acumulado (R$)",
-    tickformat=",.0f"
+# Cumulative share line
+fig_alloc.add_trace(
+    go.Scatter(
+        x=alloc_df["Channel"],
+        y=alloc_df["Cumulative Share (%)"],
+        name="Cumulative Share (%)",
+        mode="lines+markers+text",
+        text=[f"{v:.1f}%" for v in alloc_df["Cumulative Share (%)"]],
+        textposition="top center",
+        line=dict(color="#EF4444", width=4),
+        marker=dict(size=10, color="#EF4444")
+    ),
+    secondary_y=True
 )
 
 fig_alloc.update_layout(
-    barmode="group",
-    legend_title_text="Métrica"
+    title="Q1 BUDGET ALLOCATION BY CHANNEL",
+    hovermode="x unified",
+    bargap=0.35,
+    legend=dict(
+        orientation="h",
+        yanchor="bottom",
+        y=1.08,
+        xanchor="center",
+        x=0.5
+    ),
+    margin=dict(t=90)
+)
+
+fig_alloc.update_xaxes(title="Channel")
+
+fig_alloc.update_yaxes(
+    title_text="Q1 Budget (R$)",
+    tickformat=",.0f",
+    secondary_y=False
+)
+
+fig_alloc.update_yaxes(
+    title_text="Share (%)",
+    ticksuffix="%",
+    range=[0, 110],
+    secondary_y=True
 )
 
 st.plotly_chart(fig_alloc, use_container_width=True)
