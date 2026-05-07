@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import plotly.express as px
+from prophet import Prophet
 
 st.set_page_config(page_title="MMM Budget Simulator", layout="wide")
 
@@ -16,6 +17,8 @@ adstock_params = artifact["adstock_params"]
 hill_params    = artifact["hill_params"]
 all_results    = artifact["all_results"]
 X_columns      = artifact["X_columns"]
+
+df_mmm["date"] = pd.to_datetime(df_mmm["date"])
 
 # === HISTORICAL ADSTOCK ===
 historical_adstock = {}
@@ -32,7 +35,6 @@ for ch in media_cols:
 
     historical_adstock[ch] = ah
 
-# === INITIAL CARRYOVER ===
 initial_adstock = {ch: historical_adstock[ch][-1] for ch in media_cols}
 
 # === FUNCTIONS ===
@@ -46,10 +48,7 @@ def get_hill_params(channel):
     adstock_hist = historical_adstock[channel]
     valid_adstock = adstock_hist[adstock_hist > 0]
 
-    if len(valid_adstock) > 0:
-        default_k = np.median(valid_adstock)
-    else:
-        default_k = np.median(df_mmm[channel].values)
+    default_k = np.median(valid_adstock) if len(valid_adstock) > 0 else np.median(df_mmm[channel].values)
 
     if isinstance(value, dict):
         return value.get("k", default_k), value.get("s", 2.0)
@@ -93,10 +92,16 @@ def saturation_pct(adstock_series, channel):
     k, s = get_hill_params(channel)
     return hill_function(adstock_series, k=k, s=s) * 100
 
+def clean(ch):
+    return (
+        ch.replace("_spend_brl", "")
+        .replace("_hill", "")
+        .replace("_", " ")
+        .title()
+    )
+
 def optimize_2d(budget_total, coef_original, n_weeks, step_size=50000):
     spend = {ch: np.zeros(n_weeks) for ch in media_cols}
-    adstock = {ch: simulate_adstock_series(spend[ch], ch, n_weeks) for ch in media_cols}
-
     remaining = budget_total
 
     while remaining > 1e-6:
@@ -131,19 +136,74 @@ def optimize_2d(budget_total, coef_original, n_weeks, step_size=50000):
             break
 
         spend[ch_best][w_best] += step
-        adstock[ch_best] = simulate_adstock_series(spend[ch_best], ch_best, n_weeks)
-
         remaining -= step
 
     return spend
 
-def clean(ch):
-    return (
-        ch.replace("_spend_brl", "")
-        .replace("_hill", "")
-        .replace("_", " ")
-        .title()
+def forecast_baseline_with_prophet(weeks, coef_original, res):
+    prophet_df = df_mmm[["date", "revenue_brl"]].copy()
+    prophet_df = prophet_df.rename(columns={"date": "ds", "revenue_brl": "y"})
+
+    prophet_model = Prophet(
+        yearly_seasonality=True,
+        weekly_seasonality=False,
+        daily_seasonality=False
     )
+
+    prophet_model.fit(prophet_df)
+
+    future_df = pd.DataFrame({"ds": weeks})
+    forecast_future = prophet_model.predict(future_df)
+
+    future_controls = pd.DataFrame({
+        "date": weeks,
+        "trend": forecast_future["trend"].values,
+        "yearly": forecast_future["yearly"].values,
+    })
+
+    future_controls["competitor_promo_index"] = (
+        df_mmm["competitor_promo_index"].median()
+        if "competitor_promo_index" in df_mmm.columns
+        else 0
+    )
+
+    future_controls["economic_confidence_index"] = (
+        df_mmm["economic_confidence_index"].median()
+        if "economic_confidence_index" in df_mmm.columns
+        else 0
+    )
+
+    future_controls["is_black_friday"] = 0
+    future_controls["holiday_week"] = 0
+
+    intercept = (
+        res["intercept_original"]
+        if "intercept_original" in res
+        else res["intercept"]
+        if "intercept" in res
+        else 0
+    )
+
+    baseline_weekly = np.full(len(weeks), intercept, dtype=float)
+
+    baseline_features = [
+        "trend",
+        "yearly",
+        "competitor_promo_index",
+        "economic_confidence_index",
+        "is_black_friday",
+        "holiday_week"
+    ]
+
+    for feature in baseline_features:
+        if feature in X_columns:
+            idx = X_columns.index(feature)
+            coef = coef_original[idx]
+            baseline_weekly += future_controls[feature].values * coef
+
+    baseline_weekly = np.maximum(baseline_weekly, 0)
+
+    return baseline_weekly, future_controls
 
 # === SIDEBAR ===
 st.sidebar.title("Inputs do Simulador")
@@ -175,24 +235,23 @@ allocation_mode = st.sidebar.radio(
 step_size = st.sidebar.number_input(
     "Granularidade otimizacao",
     min_value=1000,
-    value=50000,
-    step=10000
+    value=5000,
+    step=5000
 )
 
-st.sidebar.caption(
-    "Dica: granularidade maior deixa o app mais rápido. Ex: 50k ou 100k."
-)
+st.sidebar.caption("Dica: granularidade maior deixa o app mais rápido. Ex: 50k ou 100k.")
 
 # === DATE RANGE ===
 weeks = pd.date_range("2025-01-06", "2025-03-31", freq="W-MON")
 n_weeks = len(weeks)
-
-last_baseline = contributions["baseline"].tail(13).values
-baseline_weekly = np.array(
-    [last_baseline[i % len(last_baseline)] for i in range(n_weeks)]
-)
-
 week_labels = [str(w.date()) for w in weeks]
+
+# === PROPHET BASELINE FORECAST ===
+baseline_weekly, future_controls = forecast_baseline_with_prophet(
+    weeks=weeks,
+    coef_original=coef_original,
+    res=res
+)
 
 st.title("MMM Interactive Budget Simulator")
 st.caption("Simulador de budget, ROI, response curve e projeção de vendas - Q1 2025")
@@ -287,6 +346,8 @@ if alloc_df["Q1 Total (R$)"].sum() > 0:
 else:
     alloc_df["Share (%)"] = 0
 
+alloc_df = alloc_df.sort_values("Q1 Total (R$)", ascending=False).reset_index(drop=True)
+
 col_a, col_b = st.columns([1, 2])
 
 with col_a:
@@ -305,7 +366,8 @@ with col_b:
         y="Q1 Total (R$)",
         color="Canal",
         title="Budget Q1 por canal",
-        text_auto=".2s"
+        text_auto=".2s",
+        category_orders={"Canal": alloc_df["Canal"].tolist()}
     )
 
     st.plotly_chart(fig_alloc, use_container_width=True)
@@ -315,6 +377,9 @@ spend_matrix = pd.DataFrame(
     {clean(ch): weekly_spend_plan[ch] for ch in media_cols},
     index=week_labels
 )
+
+ordered_channels = alloc_df["Canal"].tolist()
+spend_matrix = spend_matrix[ordered_channels]
 
 fig_heat = px.imshow(
     spend_matrix.T,
@@ -377,7 +442,6 @@ roi_sim_rows = []
 for ch in media_cols:
     beta = get_beta(ch, coef_original)
     spend_arr = weekly_spend_plan[ch]
-
     resp = incremental_response_from_spend(spend_arr, ch, beta, n_weeks)
 
     total_spend = spend_arr.sum()
@@ -414,7 +478,8 @@ with col_r2:
         y="ROI Simulado",
         color="Canal",
         title="ROI simulado por canal com investimento sugerido",
-        text_auto=".2f"
+        text_auto=".2f",
+        category_orders={"Canal": roi_sim_df["Canal"].tolist()}
     )
 
     fig_roi.add_hline(
@@ -437,8 +502,8 @@ sales_long = simulation.melt(
 )
 
 sales_long["Metrica"] = sales_long["Metrica"].map({
-    "baseline": "Baseline",
-    "incremental_revenue": "Incremental de Midia",
+    "baseline": "Baseline Prophet + MMM Controls",
+    "incremental_revenue": "Incremental de Mídia",
     "projected_revenue": "Venda Projetada"
 })
 
@@ -448,13 +513,100 @@ fig_sales = px.line(
     y="Valor",
     color="Metrica",
     markers=True,
-    title="Baseline variável + Incremental de mídia"
+    title="Predicted Revenue Decomposition"
 )
+
+fig_sales.update_yaxes(tickformat=",.0f", title="Predicted Revenue BRL")
+fig_sales.update_xaxes(title="Date")
+fig_sales.update_layout(legend_title_text="Component")
 
 st.plotly_chart(fig_sales, use_container_width=True)
 
+# === WEEKLY INCREMENTAL CONTRIBUTION ===
+st.subheader("3.1 Incremental contribution semanal por canal")
+
+incremental_cols = [
+    f"{ch.replace('_spend_brl', '')}_incremental"
+    for ch in media_cols
+]
+
+incremental_long = simulation.melt(
+    id_vars="date",
+    value_vars=incremental_cols,
+    var_name="Canal",
+    value_name="Receita Incremental (R$)"
+)
+
+incremental_long["Canal"] = (
+    incremental_long["Canal"]
+    .str.replace("_incremental", "")
+    .str.replace("_", " ")
+    .str.title()
+)
+
+incremental_order = (
+    incremental_long
+    .groupby("Canal")["Receita Incremental (R$)"]
+    .sum()
+    .sort_values(ascending=False)
+    .index
+    .tolist()
+)
+
+fig_incremental_weekly = px.area(
+    incremental_long,
+    x="date",
+    y="Receita Incremental (R$)",
+    color="Canal",
+    title="Weekly Incremental Media Contribution",
+    category_orders={"Canal": incremental_order}
+)
+
+fig_incremental_weekly.update_yaxes(tickformat=",.0f")
+fig_incremental_weekly.update_xaxes(title="Date")
+fig_incremental_weekly.update_layout(legend_title_text="Canal")
+
+st.plotly_chart(fig_incremental_weekly, use_container_width=True)
+
+# === INCREMENTAL MEDIA CONTRIBUTION SHARE ===
+st.subheader("3.2 Incremental media contribution (%)")
+
+media_contribution_pct = (
+    incremental_long
+    .groupby("Canal")["Receita Incremental (R$)"]
+    .sum()
+)
+
+if media_contribution_pct.sum() != 0:
+    media_contribution_pct = media_contribution_pct / media_contribution_pct.sum() * 100
+else:
+    media_contribution_pct = media_contribution_pct * 0
+
+media_contribution_df = (
+    media_contribution_pct
+    .sort_values(ascending=True)
+    .reset_index()
+)
+
+media_contribution_df.columns = ["Canal", "Contribution (%)"]
+
+fig_media_pct = px.bar(
+    media_contribution_df,
+    x="Contribution (%)",
+    y="Canal",
+    orientation="h",
+    title="Incremental Media Contribution (%)",
+    text="Contribution (%)"
+)
+
+fig_media_pct.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
+fig_media_pct.update_layout(xaxis_title="Contribution (%)", yaxis_title="")
+fig_media_pct.update_xaxes(range=[0, max(media_contribution_df["Contribution (%)"].max() * 1.15, 1)])
+
+st.plotly_chart(fig_media_pct, use_container_width=True)
+
 # === ADSTOCK ===
-st.subheader("3.1 Adstock efetivo por canal ao longo do Q1")
+st.subheader("4. Adstock efetivo por canal ao longo do Q1")
 
 adstock_cols = [c for c in simulation.columns if c.endswith("_adstock")]
 
@@ -481,10 +633,12 @@ fig_ads = px.line(
     title="Adstock efetivo spend + carryover por canal - Q1 2025"
 )
 
+fig_ads.update_yaxes(tickformat=",.0f")
+
 st.plotly_chart(fig_ads, use_container_width=True)
 
 # === WEEKLY SATURATION ===
-st.subheader("3.2 Saturação semanal por canal (%)")
+st.subheader("4.1 Saturação semanal por canal (%)")
 
 st.caption(
     "% de saturação da hill function aplicada sobre o adstock efetivo. "
@@ -517,21 +671,17 @@ fig_sat = px.line(
     range_y=[0, 100]
 )
 
-fig_sat.add_hline(
-    y=80,
-    line_dash="dash",
-    line_color="orange",
-    annotation_text="Alta saturação 80%"
-)
-
-fig_sat.add_hline(
-    y=50,
-    line_dash="dot",
-    line_color="green",
-    annotation_text="Saturação média 50%"
-)
+fig_sat.add_hline(y=80, line_dash="dash", line_color="orange", annotation_text="Alta saturação 80%")
+fig_sat.add_hline(y=50, line_dash="dot", line_color="green", annotation_text="Saturação média 50%")
 
 st.plotly_chart(fig_sat, use_container_width=True)
+
+# === DEBUG BASELINE ===
+with st.expander("Debug Prophet Baseline"):
+    st.dataframe(
+        future_controls.assign(baseline=baseline_weekly),
+        use_container_width=True
+    )
 
 # === DEBUG HILL PARAMS ===
 with st.expander("Debug Hill Params"):
@@ -541,11 +691,13 @@ with st.expander("Debug Hill Params"):
         k, s = get_hill_params(ch)
         cn = ch.replace("_spend_brl", "")
 
+        valid_hist = historical_adstock[ch][historical_adstock[ch] > 0]
+
         debug_rows.append({
             "Canal": clean(ch),
             "k": k,
             "s": s,
-            "Historical adstock median": np.median(historical_adstock[ch][historical_adstock[ch] > 0]),
+            "Historical adstock median": np.median(valid_hist) if len(valid_hist) > 0 else 0,
             "Q1 adstock min": simulation[f"{cn}_adstock"].min(),
             "Q1 adstock max": simulation[f"{cn}_adstock"].max(),
             "Q1 saturation min": simulation[f"{cn}_saturation"].min(),
@@ -568,7 +720,7 @@ with st.expander("Debug Hill Params"):
     )
 
 # === WEEKLY PLAN ===
-st.subheader("4. Plano semanal sugerido")
+st.subheader("5. Plano semanal sugerido")
 
 spend_cols = [c for c in simulation.columns if c.endswith("_spend")]
 
@@ -591,7 +743,7 @@ st.dataframe(
 )
 
 # === HISTORICAL ROI ===
-st.subheader("5. ROI histórico estimado pelo modelo")
+st.subheader("6. ROI histórico estimado pelo modelo")
 
 st.dataframe(
     roi_table.style.format({
@@ -604,7 +756,7 @@ st.dataframe(
 )
 
 # === RESPONSE CURVES ===
-st.subheader("6. Response curves por canal")
+st.subheader("7. Response curves por canal")
 
 st.caption(
     "Eixo X = Adstock efetivo. "
@@ -701,6 +853,9 @@ if curve_data:
             trace.marker.symbol = "diamond"
             fig_curve.add_trace(trace)
 
+        fig_curve.update_yaxes(tickformat=",.0f")
+        fig_curve.update_xaxes(tickformat=",.0f")
+
         st.plotly_chart(fig_curve, use_container_width=True)
 
     with tab2:
@@ -713,19 +868,8 @@ if curve_data:
             range_y=[0, 100]
         )
 
-        fig_sat2.add_hline(
-            y=80,
-            line_dash="dash",
-            line_color="orange",
-            annotation_text="Alta saturação"
-        )
-
-        fig_sat2.add_hline(
-            y=50,
-            line_dash="dot",
-            line_color="green",
-            annotation_text="Saturação média"
-        )
+        fig_sat2.add_hline(y=80, line_dash="dash", line_color="orange", annotation_text="Alta saturação")
+        fig_sat2.add_hline(y=50, line_dash="dot", line_color="green", annotation_text="Saturação média")
 
         pts2 = []
 
@@ -757,10 +901,12 @@ if curve_data:
             trace.marker.symbol = "diamond"
             fig_sat2.add_trace(trace)
 
+        fig_sat2.update_xaxes(tickformat=",.0f")
+
         st.plotly_chart(fig_sat2, use_container_width=True)
 
 # === DOWNLOAD ===
-st.subheader("7. Exportar simulação")
+st.subheader("8. Exportar simulação")
 
 csv = weekly_plan.to_csv(index=False).encode("utf-8")
 
