@@ -510,6 +510,9 @@ st.sidebar.caption(
     "A otimização fica em cache. Ela só recalcula quando os inputs da barra lateral mudam."
 )
 
+if st.sidebar.button("🔄 Limpar cache otimizador"):
+    cached_optimize_2d.clear()
+
 weeks = pd.date_range("2025-01-06", "2025-03-31", freq="W-MON")
 n_weeks = len(weeks)
 week_labels = [str(w.date()) for w in weeks]
