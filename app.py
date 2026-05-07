@@ -198,20 +198,47 @@ def cached_prophet_baseline(model_name, coef_tuple, weeks_tuple):
         "yearly": forecast_future["yearly"].values,
     })
 
-    future_controls["competitor_promo_index"] = (
-        df_mmm["competitor_promo_index"].median()
-        if "competitor_promo_index" in df_mmm.columns
-        else 0
-    )
+    hist_controls = df_mmm.copy()
+    hist_controls["weekofyear"] = hist_controls["date"].dt.isocalendar().week.astype(int)
+    future_controls["weekofyear"] = future_controls["date"].dt.isocalendar().week.astype(int)
 
     future_controls["economic_confidence_index"] = (
-        df_mmm["economic_confidence_index"].median()
-        if "economic_confidence_index" in df_mmm.columns
+        hist_controls["economic_confidence_index"].tail(8).mean()
+        if "economic_confidence_index" in hist_controls.columns
         else 0
     )
 
-    future_controls["is_black_friday"] = 0
-    future_controls["holiday_week"] = 0
+    if "competitor_promo_index" in hist_controls.columns:
+        promo_by_week = hist_controls.groupby("weekofyear")["competitor_promo_index"].mean()
+        future_controls["competitor_promo_index"] = (
+            future_controls["weekofyear"]
+            .map(promo_by_week)
+            .fillna(hist_controls["competitor_promo_index"].mean())
+        )
+    else:
+        future_controls["competitor_promo_index"] = 0
+
+    if "is_black_friday" in hist_controls.columns:
+        bf_by_week = hist_controls.groupby("weekofyear")["is_black_friday"].max()
+        future_controls["is_black_friday"] = (
+            future_controls["weekofyear"]
+            .map(bf_by_week)
+            .fillna(0)
+            .astype(int)
+        )
+    else:
+        future_controls["is_black_friday"] = 0
+
+    if "holiday_week" in hist_controls.columns:
+        holiday_by_week = hist_controls.groupby("weekofyear")["holiday_week"].max()
+        future_controls["holiday_week"] = (
+            future_controls["weekofyear"]
+            .map(holiday_by_week)
+            .fillna(0)
+            .astype(int)
+        )
+    else:
+        future_controls["holiday_week"] = 0
 
     res = all_results[model_name]
 
@@ -256,7 +283,7 @@ def normalized_weights_to_budget(weights_dict, total_budget):
 
     return shares.to_dict(), budget.to_dict()
 
-def build_historical_q1_analysis():
+def build_historical_q1_analysis(coef_original, weekly_spend_plan, simulation):
     hist = df_mmm.copy()
     hist["year"] = hist["date"].dt.year
     hist["week"] = hist["date"].dt.isocalendar().week.astype(int)
@@ -271,46 +298,97 @@ def build_historical_q1_analysis():
 
     hist["total_media_spend"] = hist[raw_media_cols].sum(axis=1)
 
-    first_13 = hist[hist["week"] <= 13].copy()
+    for ch in media_cols:
+        beta = get_beta(ch, coef_original)
+        cn = ch.replace("_spend_brl", "")
 
-    summary = (
+        hist_adstock = historical_adstock[ch]
+        hist_effect = response_from_adstock(hist_adstock, ch, beta)
+
+        hist[f"{cn}_media_effect"] = hist_effect
+
+    effect_cols = [
+        f"{ch.replace('_spend_brl', '')}_media_effect"
+        for ch in media_cols
+    ]
+
+    first_13 = hist[hist["week"] <= 13].copy()
+    first_13["total_media_effect"] = first_13[effect_cols].sum(axis=1)
+
+    year_summary = (
         first_13
         .groupby("year")
         .agg(
             revenue_brl=("revenue_brl", "sum"),
-            total_media_spend=("total_media_spend", "sum")
+            total_media_spend=("total_media_spend", "sum"),
+            total_media_effect=("total_media_effect", "sum")
         )
         .reset_index()
     )
 
-    summary["media_efficiency_revenue_per_spend"] = np.where(
-        summary["total_media_spend"] > 0,
-        summary["revenue_brl"] / summary["total_media_spend"],
+    year_summary["ROI Ads"] = np.where(
+        year_summary["total_media_spend"] > 0,
+        year_summary["total_media_effect"] / year_summary["total_media_spend"],
         0
     )
 
-    channel_summary = (
-        first_13
-        .groupby("year")[raw_media_cols]
-        .sum()
-        .reset_index()
-    )
+    current_revenue = simulation["projected_revenue"].sum()
+    current_spend = sum(weekly_spend_plan[ch].sum() for ch in media_cols)
+    current_new_effect = simulation["new_media_effect"].sum()
 
-    channel_long = channel_summary.melt(
-        id_vars="year",
-        value_vars=raw_media_cols,
-        var_name="Canal",
-        value_name="Spend (R$)"
-    )
+    current_summary = pd.DataFrame({
+        "year": [2025],
+        "revenue_brl": [current_revenue],
+        "total_media_spend": [current_spend],
+        "total_media_effect": [current_new_effect],
+        "ROI Ads": [current_new_effect / current_spend if current_spend > 0 else 0]
+    })
 
-    channel_long["Canal"] = (
-        channel_long["Canal"]
-        .str.replace("_spend_brl", "", regex=False)
-        .str.replace("_", " ", regex=False)
-        .str.title()
-    )
+    year_summary_plus = pd.concat(
+        [year_summary, current_summary],
+        ignore_index=True
+    ).sort_values("year")
 
-    return summary, channel_long, raw_media_cols
+    channel_rows = []
+
+    for year, g in first_13.groupby("year"):
+        total_year_spend = g[raw_media_cols].sum().sum()
+
+        for ch in media_cols:
+            cn = ch.replace("_spend_brl", "")
+            spend = g[ch].sum()
+            effect = g[f"{cn}_media_effect"].sum()
+
+            channel_rows.append({
+                "year": year,
+                "Canal": clean(ch),
+                "Spend (R$)": spend,
+                "Incremental Ads Revenue (R$)": effect,
+                "ROI Ads": effect / spend if spend > 0 else 0,
+                "Spend Share (%)": spend / total_year_spend * 100 if total_year_spend > 0 else 0,
+                "Scenario": "Histórico"
+            })
+
+    total_2025_spend = sum(weekly_spend_plan[ch].sum() for ch in media_cols)
+
+    for ch in media_cols:
+        cn = ch.replace("_spend_brl", "")
+        spend = weekly_spend_plan[ch].sum()
+        effect = simulation[f"{cn}_new_investment_effect"].sum()
+
+        channel_rows.append({
+            "year": 2025,
+            "Canal": clean(ch),
+            "Spend (R$)": spend,
+            "Incremental Ads Revenue (R$)": effect,
+            "ROI Ads": effect / spend if spend > 0 else 0,
+            "Spend Share (%)": spend / total_2025_spend * 100 if total_2025_spend > 0 else 0,
+            "Scenario": "Simulado 2025"
+        })
+
+    channel_compare = pd.DataFrame(channel_rows)
+
+    return year_summary_plus, channel_compare
 
 # === SIDEBAR ===
 st.sidebar.title("Inputs do Simulador")
@@ -1021,81 +1099,96 @@ st.dataframe(
 # === HISTORICAL ANALYSIS ===
 st.subheader("6. Análise histórica das primeiras 13 semanas")
 
-hist_summary, hist_channel_long, raw_media_cols = build_historical_q1_analysis()
-
-current_row = pd.DataFrame({
-    "year": [2025],
-    "revenue_brl": [total_revenue],
-    "total_media_spend": [budget_total],
-    "media_efficiency_revenue_per_spend": [
-        total_revenue / budget_total if budget_total > 0 else 0
-    ]
-})
-
-hist_summary_plus = pd.concat([hist_summary, current_row], ignore_index=True)
-hist_summary_plus = hist_summary_plus.sort_values("year")
-
-st.dataframe(
-    hist_summary_plus.style.format({
-        "revenue_brl": "R$ {:,.0f}",
-        "total_media_spend": "R$ {:,.0f}",
-        "media_efficiency_revenue_per_spend": "{:.2f}x"
-    }),
-    use_container_width=True
+hist_summary_plus, hist_channel_compare = build_historical_q1_analysis(
+    coef_original=coef_original,
+    weekly_spend_plan=weekly_spend_plan,
+    simulation=simulation
 )
 
 col_h1, col_h2 = st.columns(2)
 
 with col_h1:
-    hist_plot = hist_summary_plus.melt(
+    hist_effect_plot = hist_summary_plus.melt(
         id_vars="year",
-        value_vars=["revenue_brl", "total_media_spend"],
+        value_vars=["total_media_spend", "total_media_effect"],
         var_name="Métrica",
         value_name="Valor"
     )
 
-    hist_plot["Métrica"] = hist_plot["Métrica"].map({
-        "revenue_brl": "Venda",
-        "total_media_spend": "Spend Mídia"
+    hist_effect_plot["Métrica"] = hist_effect_plot["Métrica"].map({
+        "total_media_spend": "Spend Mídia",
+        "total_media_effect": "Incremental Ads Revenue"
     })
 
-    fig_hist = px.bar(
-        hist_plot,
+    fig_hist_effect = px.bar(
+        hist_effect_plot,
         x="year",
         y="Valor",
         color="Métrica",
         barmode="group",
-        title="Q1 semanas 1-13: Venda vs Spend de Mídia"
+        title="Q1 semanas 1-13: Spend vs Incremental Ads Revenue"
     )
 
-    fig_hist.update_yaxes(tickformat=",.0f")
-    st.plotly_chart(fig_hist, use_container_width=True)
+    fig_hist_effect.update_yaxes(tickformat=",.0f")
+    st.plotly_chart(fig_hist_effect, use_container_width=True)
 
 with col_h2:
-    fig_eff = px.line(
+    fig_hist_roi = px.line(
         hist_summary_plus,
         x="year",
-        y="media_efficiency_revenue_per_spend",
+        y="ROI Ads",
         markers=True,
-        title="Eficiência histórica: Venda / Spend de Mídia"
+        title="ROI Ads: anos anteriores vs simulado 2025"
     )
 
-    fig_eff.update_yaxes(tickformat=".2f")
-    st.plotly_chart(fig_eff, use_container_width=True)
+    fig_hist_roi.update_yaxes(tickformat=".2f")
+    st.plotly_chart(fig_hist_roi, use_container_width=True)
 
-st.markdown("**Spend por canal nas primeiras 13 semanas dos anos anteriores**")
+st.markdown("**Spend por canal nas primeiras 13 semanas — histórico vs simulado 2025**")
 
 fig_hist_channel = px.bar(
-    hist_channel_long,
+    hist_channel_compare,
     x="year",
     y="Spend (R$)",
     color="Canal",
-    title="Spend histórico por canal — semanas 1 a 13",
+    text="Spend Share (%)",
+    title="Spend por canal com share percentual dentro de cada ano",
     barmode="stack"
+)
+
+fig_hist_channel.update_traces(
+    texttemplate="%{text:.1f}%",
+    textposition="inside"
 )
 
 fig_hist_channel.update_yaxes(tickformat=",.0f")
 st.plotly_chart(fig_hist_channel, use_container_width=True)
+
+st.markdown("**ROI por canal — histórico vs simulado 2025**")
+
+fig_channel_roi = px.bar(
+    hist_channel_compare,
+    x="Canal",
+    y="ROI Ads",
+    color="Canal",
+    facet_col="year",
+    facet_col_wrap=4,
+    title="ROI Ads por canal nas primeiras 13 semanas"
+)
+
+fig_channel_roi.update_yaxes(tickformat=".2f")
+st.plotly_chart(fig_channel_roi, use_container_width=True)
+
+with st.expander("Tabela detalhada: histórico vs simulado 2025"):
+    st.dataframe(
+        hist_channel_compare.sort_values(["year", "Spend (R$)"], ascending=[True, False]).style.format({
+            "Spend (R$)": "R$ {:,.0f}",
+            "Incremental Ads Revenue (R$)": "R$ {:,.0f}",
+            "ROI Ads": "{:.2f}x",
+            "Spend Share (%)": "{:.1f}%"
+        }),
+        use_container_width=True
+    )
 
 # === HISTORICAL ROI FROM MODEL ===
 st.subheader("7. ROI histórico estimado pelo modelo")
