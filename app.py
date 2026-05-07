@@ -141,9 +141,23 @@ def clean(ch):
         .title()
     )
 
-def optimize_2d_raw(budget_total, coef_original, n_weeks, step_size):
+def get_week_priority(baseline_weekly, strength=0.3):
+    baseline = np.asarray(baseline_weekly, dtype=float)
+
+    if baseline.mean() <= 0:
+        return np.ones(len(baseline))
+
+    normalized = baseline / baseline.mean()
+    priority = 1 + strength * (normalized - 1)
+
+    return np.clip(priority, 0.8, 1.2)
+
+def optimize_2d_raw(budget_total, coef_original, n_weeks, step_size, week_priority=None):
     spend = {ch: np.zeros(n_weeks) for ch in media_cols}
     remaining = budget_total
+
+    if week_priority is None:
+        week_priority = np.ones(n_weeks)
 
     while remaining > 1e-6:
         step = min(step_size, remaining)
@@ -165,7 +179,10 @@ def optimize_2d_raw(budget_total, coef_original, n_weeks, step_size):
                     new_spend, ch, beta, n_weeks
                 ).sum()
 
-                gain = new_resp - cur_resp
+                raw_gain = new_resp - cur_resp
+
+                # Only changes the optimization score, not the MMM response itself
+                gain = raw_gain * week_priority[w]
 
                 if gain > best_gain:
                     best_gain = gain
@@ -182,9 +199,30 @@ def optimize_2d_raw(budget_total, coef_original, n_weeks, step_size):
     return spend
 
 @st.cache_data(show_spinner=False)
-def cached_optimize_2d(budget_total, model_name, step_size, n_weeks, coef_tuple):
+def cached_optimize_2d(
+    budget_total,
+    model_name,
+    step_size,
+    n_weeks,
+    coef_tuple,
+    baseline_tuple,
+    seasonality_strength
+):
     coef_original = np.array(coef_tuple, dtype=float)
-    return optimize_2d_raw(budget_total, coef_original, n_weeks, step_size)
+    baseline_arr = np.array(baseline_tuple, dtype=float)
+
+    week_priority = get_week_priority(
+        baseline_arr,
+        strength=seasonality_strength
+    )
+
+    return optimize_2d_raw(
+        budget_total,
+        coef_original,
+        n_weeks,
+        step_size,
+        week_priority=week_priority
+    )
 
 @st.cache_data(show_spinner=False)
 def cached_prophet_baseline(model_name, coef_tuple, weeks_tuple):
@@ -460,6 +498,14 @@ step_size = st.sidebar.number_input(
     step=5000
 )
 
+seasonality_strength = st.sidebar.slider(
+    "Peso da sazonalidade semanal para o Otimizador Greedy",
+    min_value=0.0,
+    max_value=1.0,
+    value=0.3,
+    step=0.05
+)
+
 st.sidebar.caption(
     "A otimização fica em cache. Ela só recalcula quando os inputs da barra lateral mudam."
 )
@@ -563,12 +609,14 @@ if allocation_mode == "Manual":
 else:
     with st.spinner("Optimizing 2D allocation channel x week..."):
         weekly_spend_plan = cached_optimize_2d(
-            budget_total=budget_total,
-            model_name=model_name,
-            step_size=step_size,
-            n_weeks=n_weeks,
-            coef_tuple=coef_tuple
-        )
+              budget_total=budget_total,
+              model_name=model_name,
+              step_size=step_size,
+              n_weeks=n_weeks,
+              coef_tuple=coef_tuple,
+              baseline_tuple=tuple(np.asarray(baseline_weekly, dtype=float).round(6)),
+              seasonality_strength= seasonality_strength=seasonality_strength
+          )
 
 alloc_rows = []
 
