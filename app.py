@@ -591,25 +591,25 @@ alloc_df = alloc_df.sort_values("Q1 Total (R$)", ascending=False).reset_index(dr
 
 alloc_df["Cumulative Share (%)"] = alloc_df["Share (%)"].cumsum()
 
+alloc_df["Cumulative Share (%)"] = alloc_df["Share (%)"].cumsum()
+
 fig_alloc = make_subplots(specs=[[{"secondary_y": True}]])
 
-# Budget bars
 fig_alloc.add_trace(
     go.Bar(
-        x=alloc_df["Channel"],
-        y=alloc_df["Q1 Total Budget (R$)"],
+        x=alloc_df["Canal"],
+        y=alloc_df["Q1 Total (R$)"],
         name="Q1 Budget (R$)",
-        text=[f"R$ {v:,.0f}" for v in alloc_df["Q1 Total Budget (R$)"]],
+        text=[f"R$ {v:,.0f}" for v in alloc_df["Q1 Total (R$)"]],
         textposition="outside",
         marker_color="#2563EB"
     ),
     secondary_y=False
 )
 
-# Channel share line
 fig_alloc.add_trace(
     go.Scatter(
-        x=alloc_df["Channel"],
+        x=alloc_df["Canal"],
         y=alloc_df["Share (%)"],
         name="Channel Share (%)",
         mode="lines+markers+text",
@@ -621,10 +621,9 @@ fig_alloc.add_trace(
     secondary_y=True
 )
 
-# Cumulative share line
 fig_alloc.add_trace(
     go.Scatter(
-        x=alloc_df["Channel"],
+        x=alloc_df["Canal"],
         y=alloc_df["Cumulative Share (%)"],
         name="Cumulative Share (%)",
         mode="lines+markers+text",
@@ -640,30 +639,13 @@ fig_alloc.update_layout(
     title="Q1 BUDGET ALLOCATION BY CHANNEL",
     hovermode="x unified",
     bargap=0.35,
-    legend=dict(
-        orientation="h",
-        yanchor="bottom",
-        y=1.08,
-        xanchor="center",
-        x=0.5
-    ),
+    legend=dict(orientation="h", yanchor="bottom", y=1.08, xanchor="center", x=0.5),
     margin=dict(t=90)
 )
 
 fig_alloc.update_xaxes(title="Channel")
-
-fig_alloc.update_yaxes(
-    title_text="Q1 Budget (R$)",
-    tickformat=",.0f",
-    secondary_y=False
-)
-
-fig_alloc.update_yaxes(
-    title_text="Share (%)",
-    ticksuffix="%",
-    range=[0, 110],
-    secondary_y=True
-)
+fig_alloc.update_yaxes(title_text="Q1 Budget (R$)", tickformat=",.0f", secondary_y=False)
+fig_alloc.update_yaxes(title_text="Share (%)", ticksuffix="%", range=[0, 110], secondary_y=True)
 
 st.plotly_chart(fig_alloc, use_container_width=True)
 
