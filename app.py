@@ -1236,18 +1236,30 @@ selected_channels = st.multiselect(
     default=media_cols
 )
 
+selected_week = st.selectbox(
+    "Semana para analisar response curves",
+    options=list(range(n_weeks)),
+    format_func=lambda x: week_labels[x]
+)
+
 curve_data = []
+current_points = []
 
 for ch in selected_channels:
     beta = get_beta(ch, coef_original)
     k, s = get_hill_params(ch)
     alpha = adstock_params[ch]
-    carry = initial_adstock[ch]
+
+    cn = ch.replace("_spend_brl", "")
+
+    carry = simulation[f"{cn}_adstock_total"].iloc[selected_week]
+    current_spend = weekly_spend_plan[ch][selected_week]
 
     max_raw = max(
         df_mmm[ch].max() * 1.5,
         weekly_spend_plan[ch].max() * 2,
         np.median(historical_adstock[ch]) * 1.5,
+        current_spend * 2,
         1
     )
 
@@ -1270,8 +1282,24 @@ for ch in selected_channels:
         "Canal": clean(ch)
     }))
 
+    current_ads_total = current_spend + alpha * carry
+    current_total_resp = beta * hill_function(current_ads_total, k=k, s=s)
+    current_carry_resp = beta * hill_function(alpha * carry, k=k, s=s)
+    current_new_resp = current_total_resp - current_carry_resp
+    current_sat = hill_function(current_ads_total, k=k, s=s) * 100
+
+    current_points.append({
+        "Canal": clean(ch),
+        "Spend Novo (R$)": current_spend,
+        "Adstock Efetivo (R$)": current_ads_total,
+        "Incremental Só Investimento do Período (R$)": current_new_resp,
+        "Efeito Total Mídia (R$)": current_total_resp,
+        "Saturacao (%)": current_sat
+    })
+
 if curve_data:
     curve_df = pd.concat(curve_data)
+    current_points_df = pd.DataFrame(current_points)
 
     tab1, tab2, tab3 = st.tabs([
         "Incremental Investimento do Período",
@@ -1285,8 +1313,21 @@ if curve_data:
             x="Spend Novo (R$)",
             y="Incremental Só Investimento do Período (R$)",
             color="Canal",
-            title="Response Curve - Incremental do investimento do período vs Spend Novo"
+            title=f"Response Curve - Incremental do investimento do período | Semana {week_labels[selected_week]}"
         )
+
+        fig_curve_new.add_trace(
+            go.Scatter(
+                x=current_points_df["Spend Novo (R$)"],
+                y=current_points_df["Incremental Só Investimento do Período (R$)"],
+                mode="markers+text",
+                text=current_points_df["Canal"],
+                textposition="top center",
+                name="Spend atual da semana",
+                marker=dict(size=12, color="red")
+            )
+        )
+
         fig_curve_new.update_yaxes(tickformat=",.0f")
         fig_curve_new.update_xaxes(tickformat=",.0f")
         st.plotly_chart(fig_curve_new, use_container_width=True)
@@ -1297,8 +1338,21 @@ if curve_data:
             x="Adstock Efetivo (R$)",
             y="Efeito Total Mídia (R$)",
             color="Canal",
-            title="Response Curve - Efeito Total de Mídia vs Adstock Efetivo"
+            title=f"Response Curve - Efeito Total de Mídia vs Adstock Efetivo | Semana {week_labels[selected_week]}"
         )
+
+        fig_curve_total.add_trace(
+            go.Scatter(
+                x=current_points_df["Adstock Efetivo (R$)"],
+                y=current_points_df["Efeito Total Mídia (R$)"],
+                mode="markers+text",
+                text=current_points_df["Canal"],
+                textposition="top center",
+                name="Ponto atual da semana",
+                marker=dict(size=12, color="red")
+            )
+        )
+
         fig_curve_total.update_yaxes(tickformat=",.0f")
         fig_curve_total.update_xaxes(tickformat=",.0f")
         st.plotly_chart(fig_curve_total, use_container_width=True)
@@ -1309,9 +1363,22 @@ if curve_data:
             x="Adstock Efetivo (R$)",
             y="Saturacao (%)",
             color="Canal",
-            title="Saturação vs Adstock efetivo",
+            title=f"Saturação vs Adstock efetivo | Semana {week_labels[selected_week]}",
             range_y=[0, 100]
         )
+
+        fig_sat2.add_trace(
+            go.Scatter(
+                x=current_points_df["Adstock Efetivo (R$)"],
+                y=current_points_df["Saturacao (%)"],
+                mode="markers+text",
+                text=current_points_df["Canal"],
+                textposition="top center",
+                name="Ponto atual da semana",
+                marker=dict(size=12, color="red")
+            )
+        )
+
         fig_sat2.add_hline(y=80, line_dash="dash", line_color="orange", annotation_text="Alta saturação")
         fig_sat2.add_hline(y=50, line_dash="dot", line_color="green", annotation_text="Saturação média")
         fig_sat2.update_xaxes(tickformat=",.0f")
