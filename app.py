@@ -725,15 +725,26 @@ projected_roi_total_media = total_media / budget_total if budget_total > 0 else 
 
 k1, k2, k3, k4, k5 = st.columns(5)
 
-k1.metric("Budget Total 2025", f"R$ {budget_total:,.0f}")
+k1.metric("Venda Total Projetada", f"R$ {total_revenue:,.0f}")
 k2.metric("Baseline Projetado", f"R$ {total_baseline:,.0f}")
 k3.metric("Carryover 2024", f"R$ {total_carryover:,.0f}")
-k4.metric("Incremental Budget 2025", f"R$ {total_new_media:,.0f}")
-k5.metric("Venda Total Projetada", f"R$ {total_revenue:,.0f}")
+k4.metric("Budget Total 2025", f"R$ {budget_total:,.0f}")
+k5.metric("Incremental Revenue 2025", f"R$ {total_new_media:,.0f}")
 
-r1, r2 = st.columns(2)
-r1.metric("ROI Só Investimento 2025", f"{projected_roi_new_budget:.2f}x")
-r2.metric("ROI com Carryover", f"{projected_roi_total_media:.2f}x")
+
+c1, r1, c2, r2, c3 = st.columns(5)
+
+with r1:
+    st.metric(
+        "ROI Só Investimento 2025",
+        f"{projected_roi_new_budget:.2f}x"
+    )
+
+with r2:
+    st.metric(
+        "ROI com Carryover",
+        f"{projected_roi_total_media:.2f}x"
+    )
 
 st.subheader("2.1 ROI 2025 por canal")
 
