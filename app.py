@@ -945,6 +945,8 @@ sat_long["Canal"] = (
     .str.title()
 )
 
+
+
 fig_sat = px.line(
     sat_long,
     x="date",
@@ -953,6 +955,12 @@ fig_sat = px.line(
     markers=True,
     title="Saturação semanal total por canal (%)",
     range_y=[0, 100]
+)
+
+fig_sat.update_traces(
+    mode="lines+markers+text",
+    texttemplate="%{y:.1f}%",
+    textposition="top center"
 )
 
 fig_sat.add_hline(y=80, line_dash="dash", line_color="orange", annotation_text="Alta saturação 80%")
