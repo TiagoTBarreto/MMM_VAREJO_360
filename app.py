@@ -614,6 +614,7 @@ fig_alloc.add_trace(
         name="Channel Share (%)",
         mode="lines+markers+text",
         text=[f"{v:.1f}%" for v in alloc_df["Share (%)"]],
+        textfont=dict(color="black"),
         textposition="bottom center",
         line=dict(color="#111111", width=4),
         marker=dict(size=10, color="#111111")
