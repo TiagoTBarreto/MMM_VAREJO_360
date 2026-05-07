@@ -1,6 +1,8 @@
-streamlit
+
+prophet
+cmdstanpy
 plotly
+streamlit
 scikit-learn
-numpy
 pandas
-statsmodels
+numpy
