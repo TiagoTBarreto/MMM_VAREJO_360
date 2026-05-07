@@ -615,7 +615,7 @@ else:
               n_weeks=n_weeks,
               coef_tuple=coef_tuple,
               baseline_tuple=tuple(np.asarray(baseline_weekly, dtype=float).round(6)),
-              seasonality_strength= seasonality_strength=seasonality_strength
+              seasonality_strength=seasonality_strength
           )
 
 alloc_rows = []
