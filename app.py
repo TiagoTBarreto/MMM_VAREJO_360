@@ -205,14 +205,15 @@ def cached_optimize_2d(
     step_size,
     n_weeks,
     coef_tuple,
-    baseline_tuple,
+    yearly_tuple,
     seasonality_strength
 ):
     coef_original = np.array(coef_tuple, dtype=float)
-    baseline_arr = np.array(baseline_tuple, dtype=float)
+
+    yearly_arr = np.array(yearly_tuple, dtype=float)
 
     week_priority = get_week_priority(
-        baseline_arr,
+        yearly_arr,
         strength=seasonality_strength
     )
 
@@ -612,14 +613,19 @@ if allocation_mode == "Manual":
 else:
     with st.spinner("Optimizing 2D allocation channel x week..."):
         weekly_spend_plan = cached_optimize_2d(
-              budget_total=budget_total,
-              model_name=model_name,
-              step_size=step_size,
-              n_weeks=n_weeks,
-              coef_tuple=coef_tuple,
-              baseline_tuple=tuple(np.asarray(baseline_weekly, dtype=float).round(6)),
-              seasonality_strength=seasonality_strength
-          )
+          budget_total=budget_total,
+          model_name=model_name,
+          step_size=step_size,
+          n_weeks=n_weeks,
+          coef_tuple=coef_tuple,
+          yearly_tuple=tuple(
+              np.asarray(
+                  future_controls["yearly"].values,
+                  dtype=float
+              ).round(6)
+          ),
+          seasonality_strength=seasonality_strength
+      )
 
 alloc_rows = []
 
