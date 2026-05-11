@@ -93,6 +93,12 @@ O projeto resultou em uma aplicação interativa para:
 
 ---
 
+## Next Steps
+
+As próximas evoluções do projeto incluem o desenvolvimento de uma otimização não míope, capaz de considerar não apenas o retorno incremental dentro do Q1, mas também o carryover gerado para as semanas seguintes.
+
+Atualmente, o otimizador aloca budget considerando o impacto dentro das 13 semanas simuladas. Como alguns canais possuem efeito prolongado de adstock, especialmente TV e OOH, parte do retorno gerado por investimentos feitos no final do Q1 pode aparecer apenas no início do Q2.
+
 # Tech Stack
 
 - Python
